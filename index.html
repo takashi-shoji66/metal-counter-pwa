@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#1a2332">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="材料カウンター">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="description" content="金属棒材・板材の数量を画像から自動計数するアプリ">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <title>金属材料カウンター</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+    html,body{width:100%;min-height:100vh;min-height:100dvh;background:#0e1620;color:#e8f0fe;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;overflow-x:hidden;}
+    body{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);}
+
+    .app{max-width:600px;margin:0 auto;min-height:100vh;min-height:100dvh;padding-bottom:70px;}
+
+    /* Header */
+    .app-header{background:#1a2332;color:#e8f0fe;padding:.875rem 1rem .625rem;text-align:center;position:sticky;top:0;z-index:20;box-shadow:0 1px 0 #0a0f18;}
+    .app-header h1{font-size:16px;font-weight:500;margin-bottom:1px;}
+    .app-header .ver-row{display:flex;align-items:center;justify-content:center;gap:8px;}
+    .app-header .sub{font-size:11px;color:#8faac4;}
+    .ver-badge{font-size:10px;background:#0e2040;color:#4a8cf7;border:0.5px solid #2a4a7a;border-radius:4px;padding:1px 6px;font-family:monospace;letter-spacing:.03em;}
+    .settings-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:#8faac4;padding:6px;cursor:pointer;display:flex;}
+    .settings-btn svg{width:18px;height:18px;}
+
+    /* Install banner */
+    .install-banner{display:none;background:#2563eb;color:white;padding:8px 12px;font-size:12px;align-items:center;justify-content:space-between;gap:8px;}
+    .install-banner.show{display:flex;}
+    .install-banner button{background:white;color:#2563eb;border:none;padding:4px 12px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;}
+    .ib-close{background:transparent!important;color:white!important;padding:4px!important;}
+
+    /* Offline */
+    .offline-bar{background:#78350f;color:#fbbf24;padding:6px 12px;font-size:11px;text-align:center;display:none;}
+    .offline-bar.show{display:block;}
+
+    /* Bottom nav */
+    .bottom-nav{position:fixed;bottom:0;left:0;right:0;max-width:600px;margin:0 auto;background:#111d2b;border-top:0.5px solid #2a3a52;display:flex;z-index:30;padding-bottom:env(safe-area-inset-bottom);}
+    .nav-btn{flex:1;padding:8px 4px 6px;border:none;background:transparent;color:#6b8aaa;font-size:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:color .15s;}
+    .nav-btn svg{width:22px;height:22px;}
+    .nav-btn.active{color:#4a8cf7;}
+    .nav-btn.active svg{stroke:#4a8cf7;}
+
+    /* Material type tabs */
+    .mat-tabs{display:flex;background:#111d2b;border-bottom:0.5px solid #2a3a52;}
+    .mat-tab{flex:1;padding:9px 6px;border:none;background:transparent;color:#6b8aaa;font-size:12px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;transition:all .18s;}
+    .mat-tab svg{width:18px;height:18px;}
+    .mat-tab.active{color:#7ab3f5;border-bottom:2px solid #4a8cf7;background:#1e3250;}
+
+    /* View mode tabs */
+    .view-tabs{display:flex;margin:.75rem 1rem .25rem;background:#1a2332;border-radius:8px;padding:3px;gap:2px;}
+    .view-tab{flex:1;padding:6px 4px;border:none;background:transparent;border-radius:6px;font-size:12px;color:#8faac4;cursor:pointer;transition:all .18s;}
+    .view-tab.active{background:#2a3a52;color:#e8f0fe;font-weight:500;}
+
+    .section{padding:.75rem 1rem;}
+
+    /* Panels */
+    .compare-panel{background:#1a2332;border:0.5px solid #2a3a52;border-radius:12px;overflow:hidden;margin-bottom:.75rem;}
+    .panel-header{display:flex;align-items:center;justify-content:space-between;padding:.5rem .875rem;border-bottom:0.5px solid #2a3a52;}
+    .panel-title{font-size:13px;font-weight:500;color:#e8f0fe;display:flex;align-items:center;gap:6px;}
+    .p-badge{font-size:10px;padding:2px 7px;border-radius:10px;}
+    .pb-whole{background:#1e3250;color:#7ab3f5;}
+    .pb-split{background:#1e3a22;color:#4ade80;}
+    .panel-body{padding:.75rem .875rem;}
+    .empty-state{text-align:center;padding:1.5rem .5rem;color:#6b8aaa;font-size:12px;}
+    .empty-state svg{width:26px;height:26px;display:block;margin:0 auto 6px;opacity:.35;}
+
+    /* Image preview */
+    .img-wrap{position:relative;background:#0a0f18;border-radius:8px;overflow:hidden;min-height:140px;display:flex;align-items:center;justify-content:center;margin-bottom:.5rem;}
+    .img-wrap img{width:100%;max-height:240px;object-fit:contain;display:block;}
+    .img-wrap canvas{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;}
+
+    /* Stats */
+    .stat-row{display:flex;gap:8px;margin-bottom:.5rem;}
+    .stat-box{flex:1;background:#0e1620;border-radius:8px;padding:8px 6px;text-align:center;}
+    .stat-box .n{font-size:22px;font-weight:500;line-height:1;}
+    .stat-box .l{font-size:10px;margin-top:3px;color:#8faac4;}
+    .n-blue{color:#3b9eff;}.n-yellow{color:#f5c842;}.n-white{color:#e8f0fe;}
+
+    /* Upload zone */
+    .upload-zone{border:1.5px dashed #2a4a7a;border-radius:8px;padding:1rem .875rem;text-align:center;cursor:pointer;background:#0e1620;position:relative;display:flex;flex-direction:column;align-items:center;gap:5px;}
+    .upload-zone:active{border-color:#4a8cf7;background:#142238;}
+    .upload-zone svg{width:24px;height:24px;color:#4a8cf7;}
+    .upload-zone p{font-size:12px;color:#8faac4;margin:0;}
+    .upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+
+    /* Diff */
+    .diff-card{background:#1a2332;border:0.5px solid #2a3a52;border-radius:12px;padding:.75rem .875rem;margin-bottom:.75rem;}
+    .diff-title{font-size:11px;color:#8faac4;margin-bottom:.5rem;font-weight:500;}
+    .diff-row{display:flex;align-items:center;gap:8px;}
+    .diff-nums{display:flex;align-items:center;gap:6px;flex:1;}
+    .wn{font-size:18px;font-weight:500;color:#7ab3f5;min-width:36px;text-align:right;}
+    .sn{font-size:18px;font-weight:500;color:#4ade80;min-width:36px;}
+    .da{color:#6b8aaa;font-size:14px;}
+    .diff-chip{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500;}
+    .dc-match{background:#14532d;color:#4ade80;}
+    .dc-over{background:#7f1d1d;color:#f87171;}
+    .dc-under{background:#78350f;color:#fbbf24;}
+    .diff-labels{display:flex;justify-content:space-between;margin-top:3px;}
+    .diff-lbl{font-size:10px;color:#6b8aaa;}
+    .diff-comment{margin-top:.5rem;font-size:11px;color:#8faac4;line-height:1.5;}
+
+    /* Split list */
+    .split-list{display:flex;flex-direction:column;gap:6px;margin-bottom:.75rem;}
+    .split-item{background:#0e1620;border:0.5px solid #2a3a52;border-radius:8px;overflow:hidden;}
+    .split-row{display:flex;align-items:center;gap:8px;padding:7px 9px;cursor:pointer;}
+    .split-thumb{width:40px;height:40px;object-fit:cover;border-radius:4px;background:#0a0f18;flex-shrink:0;}
+    .split-info{flex:1;min-width:0;}
+    .split-name{font-size:12px;font-weight:500;color:#e8f0fe;}
+    .split-sub{font-size:10px;color:#8faac4;margin-top:1px;}
+    .split-cnt{text-align:right;flex-shrink:0;}
+    .split-cnt .n{font-size:17px;font-weight:500;color:#4ade80;line-height:1;}
+    .split-cnt .u{font-size:10px;color:#8faac4;}
+    .split-del{background:transparent;border:none;color:#6b8aaa;cursor:pointer;padding:4px;display:flex;flex-shrink:0;}
+    .split-del:active{color:#ef4444;}
+    .split-del svg{width:16px;height:16px;}
+    .split-expand{display:none;border-top:0.5px solid #2a3a52;}
+    .split-expand.open{display:block;}
+    .split-total-bar{background:#1e3a22;border-radius:8px;padding:.625rem .875rem;margin-bottom:.75rem;display:flex;align-items:center;justify-content:space-between;}
+    .stb-left .big{font-size:22px;font-weight:500;color:#4ade80;line-height:1;}
+    .stb-left .lbl{font-size:11px;color:#86efac;margin-top:2px;}
+    .stb-right{text-align:right;font-size:10px;color:#86efac;}
+
+    /* Mini badges */
+    .mb{display:inline-flex;align-items:center;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:3px;}
+    .mb-b{background:rgba(59,158,255,.18);color:#3b9eff;}
+    .mb-y{background:rgba(245,200,66,.18);color:#f5c842;}
+
+    /* Legend */
+    .legend{display:flex;gap:10px;margin-top:.5rem;}
+    .legend-item{display:flex;align-items:center;gap:4px;font-size:10px;color:#8faac4;}
+    .ldot{width:9px;height:9px;border-radius:50%;border:2px solid;flex-shrink:0;}
+    .ldot-b{border-color:#3b9eff;background:rgba(59,158,255,.15);}
+    .ldot-y{border-color:#f5c842;background:rgba(245,200,66,.15);}
+
+    /* Save form */
+    .save-form{background:#1a2332;border:0.5px solid #2a3a52;border-radius:12px;padding:.875rem;margin-bottom:.75rem;}
+    .save-form h3{font-size:13px;font-weight:500;color:#e8f0fe;margin-bottom:.625rem;}
+    .form-field{margin-bottom:.625rem;}
+    .form-field label{display:block;font-size:11px;color:#8faac4;margin-bottom:4px;}
+    .form-field input,.form-field textarea,.form-field select{width:100%;background:#0e1620;border:0.5px solid #2a4a7a;border-radius:8px;color:#e8f0fe;font-size:13px;padding:8px 10px;outline:none;-webkit-appearance:none;}
+    .form-field input:focus,.form-field textarea:focus{border-color:#4a8cf7;}
+    .form-field textarea{resize:vertical;min-height:56px;font-family:inherit;}
+    .save-btn{width:100%;padding:11px;background:#2563eb;color:white;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;}
+    .save-btn:active{background:#1d4ed8;}
+    .save-btn:disabled{background:#1e3250;color:#6b8aaa;cursor:not-allowed;}
+
+    /* Records list */
+    .rec-search{display:flex;gap:6px;margin-bottom:.75rem;}
+    .rec-search input{flex:1;background:#1a2332;border:0.5px solid #2a4a7a;border-radius:8px;color:#e8f0fe;font-size:13px;padding:8px 10px;outline:none;}
+    .rec-search input:focus{border-color:#4a8cf7;}
+    .csv-btn{background:#1e3250;border:0.5px solid #2a4a7a;border-radius:8px;color:#7ab3f5;font-size:12px;padding:8px 12px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;}
+    .csv-btn svg{width:14px;height:14px;}
+    .rec-list{display:flex;flex-direction:column;gap:8px;}
+    .rec-card{background:#1a2332;border:0.5px solid #2a3a52;border-radius:10px;overflow:hidden;}
+    .rec-header{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;}
+    .rec-thumb{width:44px;height:44px;object-fit:cover;border-radius:6px;background:#0a0f18;flex-shrink:0;}
+    .rec-info{flex:1;min-width:0;}
+    .rec-id{font-size:13px;font-weight:500;color:#e8f0fe;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .rec-meta{font-size:10px;color:#8faac4;margin-top:2px;}
+    .rec-qty{text-align:right;flex-shrink:0;}
+    .rec-qty .n{font-size:19px;font-weight:500;color:#4ade80;line-height:1;}
+    .rec-qty .u{font-size:10px;color:#8faac4;}
+    .rec-actions{display:flex;gap:6px;padding:0 10px 8px;}
+    .rec-act-btn{flex:1;padding:6px;border-radius:6px;border:0.5px solid #2a4a7a;background:transparent;color:#8faac4;font-size:11px;cursor:pointer;text-align:center;}
+    .rec-act-btn.del{border-color:#7f1d1d;color:#f87171;}
+    .rec-detail{padding:8px 10px;border-top:0.5px solid #2a3a52;font-size:11px;color:#8faac4;line-height:1.7;}
+    .rec-empty{text-align:center;padding:2rem 1rem;color:#6b8aaa;font-size:13px;}
+    .rec-empty svg{width:32px;height:32px;display:block;margin:0 auto 8px;opacity:.3;}
+
+    /* Settings */
+    .settings-section{background:#1a2332;border:0.5px solid #2a3a52;border-radius:12px;margin-bottom:.75rem;overflow:hidden;}
+    .settings-section h3{font-size:12px;font-weight:500;color:#8faac4;padding:.625rem .875rem;border-bottom:0.5px solid #2a3a52;text-transform:uppercase;letter-spacing:.05em;}
+    .setting-row{display:flex;align-items:center;justify-content:space-between;padding:.625rem .875rem;border-bottom:0.5px solid #1a2a3a;}
+    .setting-row:last-child{border-bottom:none;}
+    .setting-label{font-size:13px;color:#e8f0fe;}
+    .setting-sub{font-size:11px;color:#8faac4;margin-top:1px;}
+    .setting-val{font-size:12px;color:#8faac4;text-align:right;}
+    .setting-btn{background:#0e1620;border:0.5px solid #2a4a7a;border-radius:6px;color:#7ab3f5;font-size:12px;padding:5px 10px;cursor:pointer;}
+    .setting-btn.danger{border-color:#7f1d1d;color:#f87171;}
+    .ver-history{padding:.75rem .875rem;}
+    .ver-item{display:flex;gap:8px;padding:5px 0;border-bottom:0.5px solid #1a2a3a;font-size:11px;}
+    .ver-item:last-child{border-bottom:none;}
+    .ver-num{color:#4a8cf7;font-family:monospace;min-width:44px;}
+    .ver-date{color:#8faac4;min-width:70px;}
+    .ver-note{color:#c0cce0;flex:1;}
+
+    /* Spinner */
+    .spinner{width:14px;height:14px;border:2px solid #1e3250;border-top-color:#4a8cf7;border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+    @keyframes spin{to{transform:rotate(360deg);}}
+    .analyzing{display:flex;align-items:center;gap:6px;font-size:11px;color:#8faac4;padding:6px 9px;}
+
+    /* API key modal */
+    .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem;}
+    .modal-card{background:#1a2332;border-radius:12px;padding:1.5rem;max-width:400px;width:100%;}
+    .modal-card h2{font-size:16px;margin-bottom:.75rem;color:#e8f0fe;}
+    .modal-card p{font-size:12px;color:#8faac4;margin-bottom:.625rem;line-height:1.6;}
+    .modal-card a{color:#4a8cf7;}
+    .modal-card input{width:100%;padding:10px;border:0.5px solid #2a4a7a;border-radius:8px;background:#0e1620;color:#e8f0fe;font-size:13px;margin-bottom:.75rem;outline:none;}
+    .modal-card .primary{width:100%;padding:11px;background:#2563eb;color:white;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;}
+    .modal-card .ghost{width:100%;padding:8px;background:transparent;border:none;color:#8faac4;font-size:12px;cursor:pointer;margin-top:6px;}
+
+    /* Toast */
+    .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(20px);background:#1e3a22;color:#4ade80;border:0.5px solid #14532d;border-radius:8px;padding:8px 16px;font-size:12px;opacity:0;transition:all .3s;pointer-events:none;z-index:50;white-space:nowrap;}
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+    .toast.error{background:#7f1d1d;color:#f87171;border-color:#991b1b;}
+
+    /* Page visibility */
+    .page{display:none;}
+    .page.active{display:block;}
+  </style>
+</head>
+<body>
+<div class="app">
+  <!-- Header -->
+  <div class="app-header">
+    <h1>金属材料カウンター</h1>
+    <div class="ver-row">
+      <span class="sub" id="header-sub">計測 · 比較 · 記録管理</span>
+      <span class="ver-badge" id="header-ver">v1.0.0</span>
+    </div>
+    <button class="settings-btn" onclick="showPage('settings')" aria-label="設定">
+      <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    </button>
+  </div>
+
+  <div class="install-banner" id="install-banner">
+    <span>ホーム画面に追加してアプリとして使用できます</span>
+    <div style="display:flex;gap:4px;">
+      <button onclick="installApp()">追加</button>
+      <button class="ib-close" onclick="dismissInstall()">✕</button>
+    </div>
+  </div>
+
+  <div class="offline-bar" id="offline-bar">オフライン中 — AI解析は接続後に実行されます</div>
+
+  <!-- ===== MEASURE PAGE ===== -->
+  <div class="page active" id="page-measure">
+    <div class="mat-tabs">
+      <button class="mat-tab active" id="mat-bar" onclick="switchMatType('bar')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="3 2"/></svg>
+        棒材
+      </button>
+      <button class="mat-tab" id="mat-plate" onclick="switchMatType('plate')">
+        <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7h16M4 12h16M4 17h16"/></svg>
+        板材
+      </button>
+    </div>
+
+    <div class="view-tabs">
+      <button class="view-tab active" id="view-both" onclick="switchView('both')">比較</button>
+      <button class="view-tab" id="view-whole" onclick="switchView('whole')">全体</button>
+      <button class="view-tab" id="view-split" onclick="switchView('split')">分割</button>
+    </div>
+
+    <div class="section">
+      <!-- Whole panel -->
+      <div class="compare-panel" id="panel-whole">
+        <div class="panel-header">
+          <span class="panel-title">全体撮影<span class="p-badge pb-whole">基準</span></span>
+          <span id="whole-cnt-hd" style="font-size:12px;color:#7ab3f5;font-weight:500;"></span>
+        </div>
+        <div class="panel-body">
+          <div class="empty-state" id="whole-empty">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            全体が映った画像を1枚追加してください
+          </div>
+          <div id="whole-content" style="display:none">
+            <div class="img-wrap"><img id="whole-img" src="" alt="全体"><canvas id="whole-canvas"></canvas></div>
+            <div class="stat-row" id="whole-stats" style="display:none">
+              <div class="stat-box"><div class="n n-blue" id="ws-sure">—</div><div class="l">確実</div></div>
+              <div class="stat-box"><div class="n n-yellow" id="ws-unsure">—</div><div class="l">不確実</div></div>
+              <div class="stat-box"><div class="n n-white" id="ws-total">—</div><div class="l" id="ws-unit">合計(本)</div></div>
+            </div>
+            <div class="legend" id="whole-legend" style="display:none">
+              <div class="legend-item"><span class="ldot ldot-b"></span>青：確実（信頼度70%以上）</div>
+              <div class="legend-item"><span class="ldot ldot-y"></span>黄：不確実</div>
+            </div>
+          </div>
+          <div class="analyzing" id="whole-analyzing" style="display:none"><div class="spinner"></div>AI解析中...</div>
+          <div id="whole-upload-wrap">
+            <label class="upload-zone" style="margin-top:.5rem">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <p id="whole-zone-lbl">全体撮影の画像を選択 / 撮影</p>
+              <input type="file" accept="image/*" id="whole-file" onchange="handleWholeFile(event)">
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Split panel -->
+      <div class="compare-panel" id="panel-split">
+        <div class="panel-header">
+          <span class="panel-title">分割撮影<span class="p-badge pb-split">合算</span></span>
+          <span id="split-cnt-hd" style="font-size:12px;color:#4ade80;font-weight:500;"></span>
+        </div>
+        <div class="panel-body">
+          <div class="split-total-bar" id="split-total-bar" style="display:none">
+            <div class="stb-left"><div class="big" id="stb-total">0</div><div class="lbl" id="stb-unit">本（分割合計）</div></div>
+            <div class="stb-right"><span id="stb-shots">0</span>枚<br><span class="mb mb-b" id="stb-sure">0</span><span class="mb mb-y" id="stb-unsure">0</span></div>
+          </div>
+          <div class="split-list" id="split-list">
+            <div class="empty-state" id="split-empty">
+              <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              分割撮影の画像を追加（複数枚可）
+            </div>
+          </div>
+          <label class="upload-zone">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+            <p id="split-zone-lbl">分割撮影を追加 / 撮影</p>
+            <input type="file" accept="image/*" id="split-file" onchange="handleSplitFile(event)">
+          </label>
+          <div class="legend" style="margin-top:.5rem">
+            <div class="legend-item"><span class="ldot ldot-b"></span>青：確実</div>
+            <div class="legend-item"><span class="ldot ldot-y"></span>黄：不確実</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Diff -->
+      <div class="diff-card" id="diff-section" style="display:none">
+        <div class="diff-title">📊 比較結果</div>
+        <div class="diff-row">
+          <div class="diff-nums">
+            <span class="wn" id="diff-whole">—</span>
+            <span class="da">⇄</span>
+            <span class="sn" id="diff-split">—</span>
+          </div>
+          <span class="diff-chip" id="diff-chip">—</span>
+        </div>
+        <div class="diff-labels">
+          <span class="diff-lbl" style="color:#7ab3f5;">全体撮影</span>
+          <span class="diff-lbl" style="color:#4ade80;">分割合算</span>
+        </div>
+        <div class="diff-comment" id="diff-comment"></div>
+      </div>
+
+      <!-- Save form -->
+      <div class="save-form" id="save-form" style="display:none">
+        <h3>📋 計測結果を保存</h3>
+        <div class="form-field">
+          <label>管理番号 <span style="color:#f87171;">*</span></label>
+          <input type="text" id="inp-mgmt-id" placeholder="例：A-001、鋼材-20260515" autocomplete="off">
+        </div>
+        <div class="form-field">
+          <label>保管場所（任意）</label>
+          <input type="text" id="inp-location" placeholder="例：倉庫A 棚3段目">
+        </div>
+        <div class="form-field">
+          <label>備考（任意）</label>
+          <textarea id="inp-note" placeholder="材質・規格・その他メモ"></textarea>
+        </div>
+        <button class="save-btn" id="save-btn" onclick="saveRecord()">この計測結果を保存する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RECORDS PAGE ===== -->
+  <div class="page" id="page-records">
+    <div class="section">
+      <div class="rec-search">
+        <input type="text" id="rec-search" placeholder="管理番号・場所で検索..." oninput="renderRecords()">
+        <button class="csv-btn" onclick="exportCSV()">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+          CSV
+        </button>
+      </div>
+      <div class="rec-list" id="rec-list"></div>
+    </div>
+  </div>
+
+  <!-- ===== SETTINGS PAGE ===== -->
+  <div class="page" id="page-settings">
+    <div class="section">
+      <div class="settings-section">
+        <h3>APIキー</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">Anthropic APIキー</div>
+            <div class="setting-sub" id="api-key-status">未設定</div>
+          </div>
+          <button class="setting-btn" onclick="openApiModal()">変更</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>アプリ情報</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">バージョン</div>
+            <div class="setting-sub" id="set-ver">—</div>
+          </div>
+          <span class="setting-val" id="set-build">—</span>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">リリース日</div>
+          </div>
+          <span class="setting-val" id="set-date">—</span>
+        </div>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">保存件数</div>
+          </div>
+          <span class="setting-val" id="set-count">—</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>更新履歴</h3>
+        <div class="ver-history" id="ver-history"></div>
+      </div>
+
+      <div class="settings-section">
+        <h3>データ管理</h3>
+        <div class="setting-row">
+          <div>
+            <div class="setting-label">全データを削除</div>
+            <div class="setting-sub">記録・画像・APIキーを消去</div>
+          </div>
+          <button class="setting-btn danger" onclick="clearAllData()">削除</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Bottom nav -->
+<div class="bottom-nav">
+  <button class="nav-btn active" id="nav-measure" onclick="showPage('measure')">
+    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    計測
+  </button>
+  <button class="nav-btn" id="nav-records" onclick="showPage('records')">
+    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+    記録
+  </button>
+  <button class="nav-btn" id="nav-settings" onclick="showPage('settings')">
+    <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+    設定
+  </button>
+</div>
+
+<!-- API Key Modal -->
+<div class="modal-bg" id="api-modal" style="display:none">
+  <div class="modal-card">
+    <h2>APIキーの設定</h2>
+    <p>Anthropic APIキーを入力してください。キーは端末内のみに保存されます。</p>
+    <p><a href="https://console.anthropic.com/settings/keys" target="_blank">APIキーを取得する →</a></p>
+    <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off">
+    <button class="primary" onclick="saveApiKey()">保存</button>
+    <button class="ghost" onclick="closeApiModal()">キャンセル</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="version.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
